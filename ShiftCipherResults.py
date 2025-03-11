@@ -17,6 +17,8 @@ from sklearn.metrics import accuracy_score
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+
 #%% 
 
 
@@ -96,7 +98,7 @@ def crack_shift_cipher_auto(ciphertext):
 # %% Text Preprocessing
 
 # Split the text into chunks of 100 words
-def split_text_into_chunks_by_words(text, chunk_size=100):
+def split_text_into_chunks_by_words(text, chunk_size=10):
     words = nltk.word_tokenize(text)  # Tokenize into words
     chunks = [' '.join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
     return chunks
@@ -105,7 +107,7 @@ def split_text_into_chunks_by_words(text, chunk_size=100):
 with open('StarWars1.txt', 'r', encoding='utf-8') as file:
     chapter_text = file.read()
 
-chunks = split_text_into_chunks_by_words(chapter_text, chunk_size=100)
+chunks = split_text_into_chunks_by_words(chapter_text, chunk_size=10)
 
 # %% encrypt and store sentences
 
@@ -182,34 +184,9 @@ test_preds_rounded = np.round(test_preds).astype(int)
 train_preds_clipped = np.clip(train_preds_rounded, 1, 25)
 test_preds_clipped = np.clip(test_preds_rounded, 1, 25)
 
-# Calculate accuracy using accuracy_score
-LRtrain_accuracy = accuracy_score(y_train, train_preds_clipped)
-LRtest_accuracy = accuracy_score(y_test, test_preds_clipped)
 
-# Calculate R² (R-squared) for train and test
-train_r2 = model.score(X_train, y_train)
-test_r2 = model.score(X_test, y_test)
 
-#%%
-print("-----------------------------------------------------------------------\n")
-#%%
 
-print("These are the results for the Shift Cipher and Linear Regression\n")
-
-print("Linear Regression Scores: \n")
-
-print(f"Train Accuracy: {LRtrain_accuracy:.4f}")
-print(f"Test Accuracy: {LRtest_accuracy:.4f}")
-print(f"Train R²: {train_r2:.4f}")
-print(f"Test R²: {test_r2:.4f}\n")
-
-kf = KFold(n_splits=10, shuffle=True, random_state=42)
-scores = cross_val_score(model, X, y, cv=kf, scoring='r2')  # R² score for regression
-print("Cross Validation Scores: \n")
-print("Cross-validation R² scores:\n", scores)
-print("Mean R² score:\n", np.mean(scores), "\n")
-
-LRCrossVal = np.mean(scores)
 #%%
 print("-----------------------------------------------------------------------\n")
 #%%
@@ -235,8 +212,8 @@ print(f"Test Accuracy: {LLRtest_accuracy:.4f}\n")
 # K-Fold Cross-Validation (classification accuracy)
 kf = KFold(n_splits=10, shuffle=True, random_state=42)
 scores = cross_val_score(model, X, y, cv=kf, scoring='accuracy')
-print("Cross Validation Scores: \n")
-print("Cross-validation scores:", scores)
+
+
 print("Mean accuracy:\n", np.mean(scores), "\n")
 LLRCrossVal = np.mean(scores)
 
@@ -269,8 +246,8 @@ print(f"Test Accuracy: {DTtest_accuracy:.4f}\n")
 # K-Fold Cross-Validation (classification accuracy)
 kf = KFold(n_splits=10, shuffle=True, random_state=42)
 scores = cross_val_score(model, X, y, cv=kf, scoring='accuracy')
-print("Cross Validation Scores: \n")
-print("Cross-validation scores:", scores)
+
+
 print("Mean accuracy:\n", np.mean(scores), "\n")
 DTCrossVal = np.mean(scores)
 #%%
@@ -300,8 +277,8 @@ print(f"Test Accuracy: {RFtest_accuracy:.4f}\n")
 # K-Fold Cross-Validation (classification accuracy)
 kf = KFold(n_splits=10, shuffle=True, random_state=42)
 scores = cross_val_score(model, X, y, cv=kf, scoring='accuracy')
-print("Cross Validation Scores: \n")
-print("Cross-validation scores:", scores)
+
+
 print("Mean accuracy:\n", np.mean(scores), "\n")
 RFCrossVal = np.mean(scores)
 
@@ -332,32 +309,64 @@ print(f"Test Accuracy: {NNtest_accuracy:.4f}\n")
 # K-Fold Cross-Validation (classification accuracy)
 kf = KFold(n_splits=10, shuffle=True, random_state=42)
 scores = cross_val_score(model, X, y, cv=kf, scoring='accuracy')
-print("Cross Validation Scores: \n")
-print("Cross-validation scores:", scores)
+
+
 print("Mean accuracy:", np.mean(scores), "\n")
 
 NNCrossVal = np.mean(scores)
 
-#$$ 
+#%%
+
+# Initialize the Gradient Boosting model
+model = GradientBoostingClassifier(
+    n_estimators=100,         # Number of boosting stages to use
+    learning_rate=0.1,        # Step size for each boosting step
+    max_depth=3,              # Maximum depth of the tree
+    random_state=42           # Ensure reproducibility
+)
+
+# Train the model
+model.fit(X_train, y_train)
+
+# Predict on the training and testing sets
+train_preds = model.predict(X_train)
+test_preds = model.predict(X_test)
+
+# Calculate accuracy using accuracy_score
+GB_train_accuracy = accuracy_score(y_train, train_preds)
+GB_test_accuracy = accuracy_score(y_test, test_preds)
+
+print("Gradient Boosting Model Scores: \n")
+print(f"Train Accuracy: {GB_train_accuracy:.4f}")
+print(f"Test Accuracy: {GB_test_accuracy:.4f}\n")
+
+# K-Fold Cross-Validation (classification accuracy)
+kf = KFold(n_splits=10, shuffle=True, random_state=42)
+scores = cross_val_score(model, X, y, cv=kf, scoring='accuracy')
+
+print("Mean accuracy:", np.mean(scores), "\n")
+
+# Store cross-validation accuracy
+GBCrossVal = np.mean(scores)
+
+#%%
 
 # Results 
 
 print("-----------------------------------------------------------------------\n")
 
 data = {
-    "Model": ["Linear Regression", "Logistic Regression", "Decision Tree", "Random Forest", "Neural Network"],
-    "Train Score": [train_r2, LLRtrain_accuracy, DTtrain_accuracy, RFtrain_accuracy, NNtrain_accuracy],  
-    "Test Score": [test_r2, LLRtest_accuracy, DTtest_accuracy, RFtest_accuracy, NNtest_accuracy],
-    "Cross-Validation Score": [LRCrossVal, LLRCrossVal, DTCrossVal, RFCrossVal, NNCrossVal]
+    "Model": ["Logistic Regression", "Decision Tree", "Random Forest", "Neural Network", "Gradient Boosting", "Decision Tree", "Manual Cryptanalysis"],
+    "Train Score": [LLRtrain_accuracy, DTtrain_accuracy, RFtrain_accuracy, NNtrain_accuracy, GB_train_accuracy, None],  
+    "Test Score": [LLRtest_accuracy, DTtest_accuracy, RFtest_accuracy, NNtest_accuracy, GB_test_accuracy, None],
+    "Cross-Validation Score": [LLRCrossVal, DTCrossVal, RFCrossVal, NNCrossVal, GBCrossVal, None],
+    "Manual Cryptanalysis Score": [None, None, None, None, None, acc_perc]
 }
 
 df_performance = pd.DataFrame(data).fillna("-")  # Replacing None with '-'
-
-print("Shift Cipher Machine Learning Results")
-print(df_performance.round(4))
+print(df_performance)
 
 #%%
-
 
 
 
