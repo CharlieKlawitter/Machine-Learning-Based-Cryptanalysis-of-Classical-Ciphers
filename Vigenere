@@ -1,0 +1,352 @@
+import random
+from collections import Counter
+import pandas as pd
+import os
+import nltk
+import re
+from itertools import product
+from collections import defaultdict
+from math import gcd
+from functools import reduce
+from collections import Counter
+from itertools import cycle
+
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_columns', None)
+os.chdir(r'C:\Users\Klaws\Downloads\ML_Crypto Research')
+
+# %% Vigenère Cipher Functions
+
+# Text cleaning function to remove non-letter characters
+def remove_non_letters(text):
+    return re.sub(r'[^A-Za-z\s]', '', text)  # Only keep letters and spaces
+
+# Vigenère Cipher Encryption
+def vig_encrypt(plaintext, key):
+    ciphertext = ""
+    plaintext = remove_non_letters(plaintext).replace(" ", "").lower()  # Clean and prepare plaintext
+    key = key.upper()  # Ensure the key is uppercase
+
+    key_length = len(key)
+    key_index = 0
+
+    for char in plaintext:
+        if 'a' <= char <= 'z':  # Only process alphabetic characters
+            shift = ord(key[key_index % key_length]) - ord('A')
+            ciphertext += chr((ord(char) - ord('a') + shift) % 26 + ord('a'))
+            key_index += 1
+
+    return plaintext, ciphertext.upper()
+
+
+# Random Key Generator
+def random_key(min_length=3, max_length=8):
+    key_length = random.randint(min_length, max_length)
+    return ''.join(random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ') for _ in range(key_length))
+
+# Letter frequency counting function
+def char_frequency(text):
+    counts = Counter(text)
+    total_chars = len(text)
+    return {char: count / total_chars for char, count in counts.items()}
+
+def refined_kasiski_examination(ciphertext, min_sequence_length=3, max_sequence_length=8):
+    # Dictionary to store sequence positions
+    seqs = defaultdict(list)
+
+    # Step 1: Find repeated sequences of varying lengths
+    for seq_len in range(min_sequence_length, max_sequence_length + 1):
+        for i in range(len(ciphertext) - seq_len + 1):
+            seq = ciphertext[i:i+seq_len]
+            seqs[seq].append(i)
+
+    # Step 2: Filter out sequences that occur only once (we want repeats)
+    repeated_seqs = {seq: positions for seq, positions in seqs.items() if len(positions) > 1}
+
+    # Step 3: Calculate distances between occurrences of repeated sequences
+    distances = []
+    for positions in repeated_seqs.values():
+        for i in range(len(positions) - 1):
+            distance = positions[i+1] - positions[i]
+            distances.append(distance)
+
+    if not distances:
+        return 3  # No distances found, return default key length
+    
+    # Step 4: Compute GCDs of distances to find probable key lengths
+    gcds = defaultdict(int)
+    for dist in distances:
+        divisors = get_divisors(dist)  # Make sure get_divisors function is working
+        # Filter divisors to only include those between 3 and 8
+        divisors = [d for d in divisors if 3 <= d <= 8]  # Only divisors in the range [3, 8]
+        for divisor in divisors:
+            gcds[divisor] += 1
+
+    # Step 5: Sort the GCDs by the frequency of each divisor
+    sorted_gcds = sorted(gcds.items(), key=lambda x: x[1], reverse=True)
+
+    # Step 6: Get the most probable key length
+    if sorted_gcds:
+        probable_key_length = sorted_gcds[0][0]
+    else:
+        return 3  # If no clear key length is found, return default
+    
+    # Step 7: Ensure the key length is between min_sequence_length and max_sequence_length
+    if min_sequence_length <= probable_key_length <= max_sequence_length:
+        return probable_key_length
+    else:
+        return 3  # Fallback to default key length if the calculated one is out of range
+
+
+# Refined GCD function
+def get_divisors(n):
+    divisors = set()
+    for i in range(1, int(n ** 0.5) + 1):
+        if n % i == 0:
+            divisors.add(i)
+            divisors.add(n // i)
+    return sorted(divisors)
+
+
+    return divisors
+
+
+
+ 
+def vigenere_decrypt(ciphertext, key):
+    # Vigenère decryption function
+    key = key.upper()
+    key_index = 0
+    decrypted_text = ""
+
+    for char in ciphertext:
+        if 'A' <= char <= 'Z':
+            shift = ord(key[key_index % len(key)]) - ord('A')
+            decrypted_text += chr((ord(char) - ord('A') - shift) % 26 + ord('A'))
+            key_index += 1
+        else:
+            decrypted_text += char
+
+    return decrypted_text.lower()  # Return the decrypted text as lowercase
+
+
+english_freq = {
+     'E': 12.70, 'T': 9.06, 'A': 8.17, 'O': 7.51, 'I': 6.97, 'N': 6.75, 
+     'S': 6.33, 'H': 6.09, 'R': 5.99, 'D': 4.25, 'L': 4.03, 'C': 2.78, 
+     'U': 2.76, 'M': 2.41, 'W': 2.36, 'F': 2.23, 'G': 2.02, 'Y': 1.97, 
+     'P': 1.93, 'B': 1.49, 'V': 0.98, 'K': 0.77, 'J': 0.15, 'X': 0.15, 
+     'Q': 0.10, 'Z': 0.07
+}
+
+def frequency_analysis(ciphertext, key_length):
+    # Split ciphertext into key-length segments
+    segments = ['' for _ in range(key_length)]
+    for i, char in enumerate(ciphertext):
+        if 'A' <= char <= 'Z':
+            segments[i % key_length] += char
+
+    # Frequency analysis on each segment
+    guessed_key = ""
+    for segment in segments:
+        frequencies = Counter(segment)
+        most_common_letter = frequencies.most_common(1)[0][0]
+        shift = (ord(most_common_letter) - ord('E')) % 26  
+        guessed_key += chr(shift + ord('A'))
+
+    return guessed_key
+
+def get_char_frequency(ciphertext):
+    cleaned_text = re.sub(r'[^A-Za-z]', '', ciphertext).upper()  # Remove non-letter characters and convert to uppercase
+    char_counts = Counter(cleaned_text)  # Count occurrences of each character
+    total_chars = sum(char_counts.values())  # Total number of letters
+    freq = {char: count / total_chars for char, count in char_counts.items()}
+    return freq
+
+
+def frequency_analysis_vigenere(ciphertext, key_length):
+    # Initialize an empty list to hold the guesses for each key character
+    guessed_key = []
+
+    # Step 1: Split the ciphertext into key-length segments
+    segments = ['' for _ in range(key_length)]
+    for i, char in enumerate(ciphertext):
+        if 'A' <= char <= 'Z':  # Only include alphabetic characters
+            segments[i % key_length] += char
+
+    # Step 2: Perform frequency analysis for each segment
+    for i, segment in enumerate(segments):
+        segment_freq = get_char_frequency(segment)  # Frequency analysis for the segment
+        most_common_letter = max(segment_freq, key=segment_freq.get)  # Find the most common letter in the segment
+        
+        # Calculate the shift based on the most common letter (assuming 'E' is the most common in English)
+        shift = (ord(most_common_letter) - ord('E')) % 26
+        guessed_key.append(chr(shift + ord('A')))  # Append the guessed character to the key
+
+    # Combine the list of guessed characters into a single string
+    return ''.join(guessed_key)
+
+
+def bigram_frequency(text):
+    # Remove non-alphabetic characters and convert to uppercase to avoid case mismatch
+    text = re.sub(r'[^A-Za-z]', '', text).upper()
+    
+    # If text is too short to form bigrams, return a dictionary with zeros for all bigrams
+    if len(text) < 2:
+        return {f'Bigram_{i}': 0 for i in range(500)}  # Return a row of zeros
+    
+    # Create a list of bigrams (pairs of consecutive characters)
+    bigrams = [text[i:i+2] for i in range(len(text) - 1)]
+    
+    # Count the occurrences of each bigram
+    bigram_counts = Counter(bigrams)
+    
+    # Initialize a dictionary with all bigrams as keys and 0 as default count
+    bigram_dict = {f'Bigram_{i}': 0 for i in range(500)}
+    
+    # Update bigram counts in the dictionary
+    for bigram, count in bigram_counts.items():
+        bigram_index = (ord(bigram[0]) - 65) * 26 + (ord(bigram[1]) - 65)
+        bigram_dict[f'Bigram_{bigram_index}'] = count
+    
+    return bigram_dict
+
+
+
+def trigram_frequency(text):
+    # Remove non-alphabetic characters and convert to uppercase to avoid case mismatch
+    text = re.sub(r'[^A-Za-z]', '', text).upper()
+    
+    # If text is too short to form trigrams, return a dictionary with zeros for all trigrams
+    if len(text) < 3:
+        return {f'Trigram_{i}': 0 for i in range(500)}  # Return a row of zeros
+    
+    # Create a list of trigrams (triplets of consecutive characters)
+    trigrams = [text[i:i+3] for i in range(len(text) - 2)]
+    
+    # Count the occurrences of each trigram
+    trigram_counts = Counter(trigrams)
+    
+    # Initialize a dictionary with all trigrams as keys and 0 as default count
+    trigram_dict = {f'Trigram_{i}': 0 for i in range(500)}
+    
+    # Update trigram counts in the dictionary
+    for trigram, count in trigram_counts.items():
+        trigram_index = (ord(trigram[0]) - 65) * 26 * 26 + (ord(trigram[1]) - 65) * 26 + (ord(trigram[2]) - 65)
+        trigram_dict[f'Trigram_{trigram_index}'] = count
+    
+    return trigram_dict
+
+
+def index_of_coincidence(text):
+    text = re.sub(r'[^A-Za-z]', '', text)
+    N = len(text)
+    if N <= 1:
+        return 0
+    freq = Counter(text.upper())
+    ic = sum(f * (f - 1) for f in freq.values()) / (N * (N - 1))
+    return ic
+
+
+
+# %% Text Preprocessing
+
+
+# Split the text into chunks of words
+def split_text_into_chunks_by_words(text, chunk_size=50):
+    words = text.split()  # Split the text into individual words
+    chunks = []
+    current_chunk = []
+
+    for word in words:
+        # Add words to the current chunk until the chunk reaches the desired size
+        current_chunk.append(word)
+        if len(current_chunk) >= chunk_size:
+            chunks.append(' '.join(current_chunk))
+            current_chunk = []  # Start a new chunk
+
+    # Add any remaining words as the final chunk
+    if current_chunk:
+        chunks.append(' '.join(current_chunk))
+
+    return chunks
+
+
+# %% Read in text file
+with open('StarWars1.txt', 'r', encoding='utf-8') as file:
+    chapter_text = file.read()
+
+chunks = split_text_into_chunks_by_words(chapter_text, chunk_size=50)
+chunks += split_text_into_chunks_by_words(chapter_text, chunk_size=50)
+chunks += split_text_into_chunks_by_words(chapter_text, chunk_size=50)
+chunks += split_text_into_chunks_by_words(chapter_text, chunk_size=50)
+chunks += split_text_into_chunks_by_words(chapter_text, chunk_size=50)
+
+
+
+# %% Encrypt each chunk and store the result
+
+plain_cipher_pairs = []
+for chunk in chunks:
+    key = random_key(3, 8)  # Generate a random key of length 3 to 8
+    plaintext, ciphertext = vig_encrypt(chunk, key)
+    plain_cipher_pairs.append((key, plaintext, ciphertext))
+
+df = pd.DataFrame(plain_cipher_pairs, columns=['Key', 'Plaintext', 'Ciphertext'])
+df = df.iloc[:-1].copy()
+# %% Feature extraction for ML model
+
+df_ml_dataset = df.copy()
+df_ml_dataset['Ciphertext_IC'] = df_ml_dataset['Ciphertext'].apply(index_of_coincidence)
+char_freqs = df_ml_dataset['Ciphertext'].apply(char_frequency)
+char_freqs = char_freqs.fillna(0)
+bigram_freqs = df_ml_dataset['Ciphertext'].apply(bigram_frequency)
+bigram_freqs = bigram_freqs.fillna(0)
+trigram_freqs = df_ml_dataset['Ciphertext'].apply(trigram_frequency)
+trigram_freqs = trigram_freqs.fillna(0)
+
+trigram_columns = [f'Trigram_{i}' for i in range(500)]  
+trigram_df = pd.DataFrame(trigram_freqs.tolist(), columns=trigram_columns)
+char_freq_df = pd.DataFrame(char_freqs.tolist(), columns=[f'Letter_{char}' for char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'])
+bigram_columns = [f'Bigram_{i}' for i in range(500)]  
+bigram_df = pd.DataFrame(bigram_freqs.tolist(), columns=bigram_columns)
+df_ml_dataset = pd.concat([df_ml_dataset, char_freq_df, bigram_df, trigram_df], axis=1)
+df_ml_dataset = df_ml_dataset.fillna(0)
+
+
+
+print(f"Generated {len(df)} encrypted chunks with Vigenere cipher.\n")
+#%%
+df_cryptanalysis = df.copy()
+
+df_cryptanalysis['best_key'] = None
+df_cryptanalysis['best_plaintext'] = None
+
+for i in range(df_cryptanalysis.shape[0]):
+    ciphertext = df_cryptanalysis.loc[i, 'Ciphertext']
+    
+    # Step 1: Use Kasiski examination to guess key length (ensure it's between 3 and 8)
+    probable_key_length = refined_kasiski_examination(ciphertext)
+    
+    # Step 2: Use frequency analysis to guess the key
+    guessed_key = frequency_analysis(ciphertext, probable_key_length)
+    
+    # Step 3: Decrypt with the guessed key
+    best_plaintext = vigenere_decrypt(ciphertext, guessed_key)
+    
+    # Store results
+    df_cryptanalysis.loc[i, 'best_key'] = guessed_key
+    df_cryptanalysis.loc[i, 'best_plaintext'] = best_plaintext
+
+# Optionally, compare guessed keys with actual keys
+df_cryptanalysis['keys_match'] = df_cryptanalysis['Key'].astype(str).str.lower() == df_cryptanalysis['best_key'].astype(str).str.lower()
+
+# Print results
+false_count = len(df_cryptanalysis) - df_cryptanalysis['keys_match'].sum()
+acc_perc = (len(df_cryptanalysis) - false_count) / len(df_cryptanalysis)
+print(f"Number of non-matching keys: {false_count}")
+print(f"Percent of matching keys: {acc_perc:.4f}")
+
+#%%
+
+
+
